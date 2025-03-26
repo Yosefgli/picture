@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Photo Slideshow</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    
+    .fade-in {
+      animation: fadeIn 0.5s ease-in;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    .upload-area {
+      border: 2px dashed #cbd5e1;
+      transition: all 0.3s ease;
+    }
+    
+    .upload-area:hover {
+      border-color: #3b82f6;
+      background-color: rgba(59, 130, 246, 0.05);
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-b from-gray-100 to-gray-200 min-h-screen">
+  <div id="app" class="w-full h-screen"></div>
+
+  <script>
+    // Main application
+    document.addEventListener('DOMContentLoaded', function() {
+      // State variables
+      let selectedImages = [];
+      let currentImageIndex = 0;
+      let slideshowInterval = null;
+      let isPlaying = false;
+      
+      // Initialize the application
+      renderUploader();
+      
+      // Render the image uploader
+      function renderUploader() {
+        const appContainer = document.getElementById('app');
+        appContainer.innerHTML = `
+          <div class="flex items-center justify-center h-full p-4">
+            <div class="max-w-lg w-full bg-white p-6 rounded-lg shadow-md">
+              <h2 class="text-2xl font-bold text-center mb-6">Upload Your Images</h2>
+              
+              <div id="upload-area" class="upload-area p-8 rounded-md mb-4 text-center cursor-pointer">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto text-gray-400 mb-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 15v4c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                </svg>
+                <p>Drag and drop your images here</p>
+                <p class="text-sm text-gray-500 mt-2">or</p>
+                <button class="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none">
+                  Select Files
+                </button>
+                <input type="file" id="file-input" class="hidden" accept="image/*" multiple />
+              </div>
+              
+              <div id="image-preview" class="grid grid-cols-3 gap-2 mb-4">
+                ${renderImagePreviews()}
+              </div>
+              
+              <div class="flex justify-between mt-4">
+                <button id="clear-btn" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 focus:outline-none ${selectedImages.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}">
+                  Clear All
+                </button>
+                <button id="continue-btn" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none ${selectedImages.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}">
+                  Continue to Slideshow
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+        
+        setupUploaderEventListeners();
+      }
+      
+      // Setup event listeners for the uploader
+      function setupUploaderEventListeners() {
+        const fileInput = document.getElementById('file-input');
+        const uploadArea = document.getElementById('upload-area');
+        const continueBtn = document.getElementById('continue-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        
+        // File selection via button click
+        uploadArea.addEventListener('click', () => {
+          fileInput.click();
+        });
+        
+        // Drag and drop events
+        uploadArea.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          uploadArea.classList.add('border-blue-500', 'bg-blue-50');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+          uploadArea.classList.remove('border-blue-500', 'bg-blue-50');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+          e.preventDefault();
+          uploadArea.classList.remove('border-blue-500', 'bg-blue-50');
+          
+          const files = Array.from(e.dataTransfer.files);
+          handleFileSelection(files);
+        });
+        
+        // File selection via input
+        fileInput.addEventListener('change', () => {
+          const files = Array.from(fileInput.files);
+          handleFileSelection(files);
+        });
+        
+        // Continue to slideshow button
+        continueBtn.addEventListener('click', () => {
+          if (selectedImages.length > 0) {
+            startSlideshow();
+          }
+        });
+        
+        // Clear all images button
+        clearBtn.addEventListener('click', () => {
+          if (selectedImages.length > 0) {
+            selectedImages = [];
+            updateImagePreviews();
+            showToast('All images cleared');
+          }
+        });
+      }
+      
+      // Handle file selection
+      function handleFileSelection(files) {
+        // Filter for image files
+        const imageFiles = files.filter(file => file.type.startsWith('image/'));
+        
+        if (imageFiles.length === 0) {
+          showToast('Please select valid image files', 'error');
+          return;
+        }
+        
+        if (files.length !== imageFiles.length) {
+          showToast('Some files were rejected because they are not images', 'error');
+        }
+        
+        // Add selected images to our array
+        imageFiles.forEach(file => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            selectedImages.push({
+              src: e.target.result,
+              name: file.name
+            });
+            updateImagePreviews();
+          };
+          reader.readAsDataURL(file);
+        });
+        
+        showToast(`${imageFiles.length} images added to slideshow`);
+      }
+      
+      // Update image previews in the uploader
+      function updateImagePreviews() {
+        const previewContainer = document.getElementById('image-preview');
+        previewContainer.innerHTML = renderImagePreviews();
+        
+        // Update button states
+        const continueBtn = document.getElementById('continue-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        
+        if (selectedImages.length > 0) {
+          continueBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+          clearBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        } else {
+          continueBtn.classList.add('opacity-50', 'cursor-not-allowed');
+          clearBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+      }
+      
+      // Render HTML for image previews
+      function renderImagePreviews() {
+        if (selectedImages.length === 0) {
+          return '';
+        }
+        
+        return selectedImages.map((image, index) => `
+          <div class="relative group">
+            <img 
+              src="${image.src}" 
+              alt="${image.name}"
+              class="w-full h-20 object-cover rounded border border-gray-200"
+            />
+            <button 
+              class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+              onclick="removeImage(${index})"
+            >
+              &times;
+            </button>
+          </div>
+        `).join('');
+      }
+      
+      // Start the slideshow
+      function startSlideshow() {
+        currentImageIndex = 0;
+        isPlaying = true;
+        renderSlideshow();
+        startSlideshowTimer();
+      }
+      
+      // Render the slideshow view
+      function renderSlideshow() {
+        const appContainer = document.getElementById('app');
+        appContainer.innerHTML = `
+          <div class="relative w-full h-full bg-black">
+            <div id="slideshow-container" class="w-full h-full flex items-center justify-center">
+              <img 
+                src="${selectedImages[currentImageIndex].src}" 
+                alt="Slideshow image" 
+                class="max-w-full max-h-full fade-in object-contain"
+              />
+            </div>
+            
+            <div class="absolute bottom-4 left-0 right-0 flex justify-center space-x-4">
+              <button id="play-pause-btn" class="bg-white bg-opacity-30 hover:bg-opacity-50 text-white p-2 rounded-full transition">
+                ${isPlaying ? 
+                  `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="6" y="4" width="4" height="16"/>
+                    <rect x="14" y="4" width="4" height="16"/>
+                  </svg>` : 
+                  `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                  </svg>`
+                }
+              </button>
+              
+              <button id="add-more-btn" class="bg-white bg-opacity-30 hover:bg-opacity-50 text-white p-2 rounded-full transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="16"/>
+                  <line x1="8" y1="12" x2="16" y2="12"/>
+                </svg>
+              </button>
+              
+              <button id="reset-btn" class="bg-white bg-opacity-30 hover:bg-opacity-50 text-white p-2 rounded-full transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M23 4v6h-6M1 20v-6h6"/>
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                </svg>
+              </button>
+            </div>
+            
+            <div class="absolute top-4 right-4 text-white bg-black bg-opacity-50 px-2 py-1 rounded">
+              ${currentImageIndex + 1} / ${selectedImages.length}
+            </div>
+          </div>
+        `;
+        
+        setupSlideshowEventListeners();
+      }
+      
+      // Setup event listeners for the slideshow
+      function setupSlideshowEventListeners() {
+        const playPauseBtn = document.getElementById('play-pause-btn');
+        const addMoreBtn = document.getElementById('add-more-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        
+        // Play/pause button
+        playPauseBtn.addEventListener('click', togglePlayPause);
+        
+        // Add more images button
+        addMoreBtn.addEventListener('click', () => {
+          stopSlideshowTimer();
+          renderUploader();
+        });
+        
+        // Reset button
+        resetBtn.addEventListener('click', () => {
+          stopSlideshowTimer();
+          selectedImages = [];
+          renderUploader();
+          showToast('Slideshow reset');
+        });
+      }
+      
+      // Start the slideshow timer
+      function startSlideshowTimer() {
+        stopSlideshowTimer(); // Clear any existing timer
+        
+        slideshowInterval = setInterval(() => {
+          currentImageIndex = (currentImageIndex + 1) % selectedImages.length;
+          updateSlideshowImage();
+        }, 5000); // Change image every 5 seconds
+      }
+      
+      // Stop the slideshow timer
+      function stopSlideshowTimer() {
+        if (slideshowInterval) {
+          clearInterval(slideshowInterval);
+          slideshowInterval = null;
+        }
+      }
+      
+      // Toggle play/pause state
+      function togglePlayPause() {
+        isPlaying = !isPlaying;
+        
+        const playPauseBtn = document.getElementById('play-pause-btn');
+        playPauseBtn.innerHTML = isPlaying ? 
+          `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="6" y="4" width="4" height="16"/>
+            <rect x="14" y="4" width="4" height="16"/>
+          </svg>` : 
+          `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="5 3 19 12 5 21 5 3"/>
+          </svg>`;
+        
+        if (isPlaying) {
+          startSlideshowTimer();
+        } else {
+          stopSlideshowTimer();
+        }
+      }
+      
+      // Update the current image in the slideshow
+      function updateSlideshowImage() {
+        const slideshowContainer = document.getElementById('slideshow-container');
+        slideshowContainer.innerHTML = `
+          <img 
+            src="${selectedImages[currentImageIndex].src}" 
+            alt="Slideshow image" 
+            class="max-w-full max-h-full fade-in object-contain"
+          />
+        `;
+        
+        // Update the counter
+        const counter = document.querySelector('.absolute.top-4.right-4');
+        counter.textContent = `${currentImageIndex + 1} / ${selectedImages.length}`;
+      }
+      
+      // Show a toast notification
+      function showToast(message, type = 'success') {
+        // Create toast element
+        const toast = document.createElement('div');
+        toast.className = `fixed top-4 right-4 px-4 py-2 rounded shadow-lg transition-opacity z-50 ${
+          type === 'success' ? 'bg-green-500 text-white' : 
+          type === 'error' ? 'bg-red-500 text-white' : 
+          'bg-blue-500 text-white'
+        }`;
+        toast.style.opacity = '0';
+        toast.textContent = message;
+        
+        // Append to body
+        document.body.appendChild(toast);
+        
+        // Fade in
+        setTimeout(() => {
+          toast.style.opacity = '1';
+        }, 10);
+        
+        // Fade out and remove
+        setTimeout(() => {
+          toast.style.opacity = '0';
+          setTimeout(() => {
+            document.body.removeChild(toast);
+          }, 300);
+        }, 3000);
+      }
+      
+      // Make the removeImage function globally available
+      window.removeImage = function(index) {
+        selectedImages.splice(index, 1);
+        updateImagePreviews();
+        showToast('Image removed');
+      };
+    });
+  </script>
+</body>
+</html>
