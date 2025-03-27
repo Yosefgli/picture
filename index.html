@@ -36,18 +36,31 @@
   <div id="app" class="w-full h-screen"></div>
 
   <script>
-    // Main application
     document.addEventListener('DOMContentLoaded', function() {
-      // State variables
-      let selectedImages = [];
-      let currentImageIndex = 0;
-      let slideshowInterval = null;
-      let isPlaying = false;
-      
-      // Initialize the application
-      renderUploader();
-      
-      // Render the image uploader
+      // Application State
+      const state = {
+        selectedImages: [],
+        currentImageIndex: 0,
+        slideshowInterval: null,
+        isPlaying: false
+      };
+
+      // Main Render Function
+      function render(view) {
+        const appContainer = document.getElementById('app');
+        appContainer.innerHTML = '';
+        
+        switch(view) {
+          case 'uploader':
+            renderUploader();
+            break;
+          case 'slideshow':
+            renderSlideshow();
+            break;
+        }
+      }
+
+      // Uploader View
       function renderUploader() {
         const appContainer = document.getElementById('app');
         appContainer.innerHTML = `
@@ -72,10 +85,10 @@
               </div>
               
               <div class="flex justify-between mt-4">
-                <button id="clear-btn" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 focus:outline-none ${selectedImages.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}">
+                <button id="clear-btn" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 focus:outline-none ${state.selectedImages.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}">
                   Clear All
                 </button>
-                <button id="continue-btn" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none ${selectedImages.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}">
+                <button id="continue-btn" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none ${state.selectedImages.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}">
                   Continue to Slideshow
                 </button>
               </div>
@@ -85,115 +98,12 @@
         
         setupUploaderEventListeners();
       }
-      
-      // Setup event listeners for the uploader
-      function setupUploaderEventListeners() {
-        const fileInput = document.getElementById('file-input');
-        const uploadArea = document.getElementById('upload-area');
-        const continueBtn = document.getElementById('continue-btn');
-        const clearBtn = document.getElementById('clear-btn');
-        
-        // File selection via button click
-        uploadArea.addEventListener('click', () => {
-          fileInput.click();
-        });
-        
-        // Drag and drop events
-        uploadArea.addEventListener('dragover', (e) => {
-          e.preventDefault();
-          uploadArea.classList.add('border-blue-500', 'bg-blue-50');
-        });
-        
-        uploadArea.addEventListener('dragleave', () => {
-          uploadArea.classList.remove('border-blue-500', 'bg-blue-50');
-        });
-        
-        uploadArea.addEventListener('drop', (e) => {
-          e.preventDefault();
-          uploadArea.classList.remove('border-blue-500', 'bg-blue-50');
-          
-          const files = Array.from(e.dataTransfer.files);
-          handleFileSelection(files);
-        });
-        
-        // File selection via input
-        fileInput.addEventListener('change', () => {
-          const files = Array.from(fileInput.files);
-          handleFileSelection(files);
-        });
-        
-        // Continue to slideshow button
-        continueBtn.addEventListener('click', () => {
-          if (selectedImages.length > 0) {
-            startSlideshow();
-          }
-        });
-        
-        // Clear all images button
-        clearBtn.addEventListener('click', () => {
-          if (selectedImages.length > 0) {
-            selectedImages = [];
-            updateImagePreviews();
-            showToast('All images cleared');
-          }
-        });
-      }
-      
-      // Handle file selection
-      function handleFileSelection(files) {
-        // Filter for image files
-        const imageFiles = files.filter(file => file.type.startsWith('image/'));
-        
-        if (imageFiles.length === 0) {
-          showToast('Please select valid image files', 'error');
-          return;
-        }
-        
-        if (files.length !== imageFiles.length) {
-          showToast('Some files were rejected because they are not images', 'error');
-        }
-        
-        // Add selected images to our array
-        imageFiles.forEach(file => {
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            selectedImages.push({
-              src: e.target.result,
-              name: file.name
-            });
-            updateImagePreviews();
-          };
-          reader.readAsDataURL(file);
-        });
-        
-        showToast(`${imageFiles.length} images added to slideshow`);
-      }
-      
-      // Update image previews in the uploader
-      function updateImagePreviews() {
-        const previewContainer = document.getElementById('image-preview');
-        previewContainer.innerHTML = renderImagePreviews();
-        
-        // Update button states
-        const continueBtn = document.getElementById('continue-btn');
-        const clearBtn = document.getElementById('clear-btn');
-        
-        if (selectedImages.length > 0) {
-          continueBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-          clearBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-        } else {
-          continueBtn.classList.add('opacity-50', 'cursor-not-allowed');
-          clearBtn.classList.add('opacity-50', 'cursor-not-allowed');
-        }
-      }
-      
-      // Render HTML for image previews
+
+      // Image Previews
       function renderImagePreviews() {
-        if (selectedImages.length === 0) {
-          return '';
-        }
+        if (state.selectedImages.length === 0) return '';
         
-        return selectedImages.map((image, index) => `
+        return state.selectedImages.map((image, index) => `
           <div class="relative group">
             <img 
               src="${image.src}" 
@@ -209,23 +119,103 @@
           </div>
         `).join('');
       }
-      
-      // Start the slideshow
-      function startSlideshow() {
-        currentImageIndex = 0;
-        isPlaying = true;
-        renderSlideshow();
-        startSlideshowTimer();
+
+      // Uploader Event Listeners
+      function setupUploaderEventListeners() {
+        const fileInput = document.getElementById('file-input');
+        const uploadArea = document.getElementById('upload-area');
+        const continueBtn = document.getElementById('continue-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        
+        uploadArea.addEventListener('click', () => fileInput.click());
+        
+        uploadArea.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          uploadArea.classList.add('border-blue-500', 'bg-blue-50');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+          uploadArea.classList.remove('border-blue-500', 'bg-blue-50');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+          e.preventDefault();
+          uploadArea.classList.remove('border-blue-500', 'bg-blue-50');
+          handleFileSelection(Array.from(e.dataTransfer.files));
+        });
+        
+        fileInput.addEventListener('change', () => {
+          handleFileSelection(Array.from(fileInput.files));
+        });
+        
+        continueBtn.addEventListener('click', () => {
+          if (state.selectedImages.length > 0) {
+            startSlideshow();
+          }
+        });
+        
+        clearBtn.addEventListener('click', () => {
+          if (state.selectedImages.length > 0) {
+            state.selectedImages = [];
+            updateImagePreviews();
+            showToast('All images cleared');
+          }
+        });
       }
-      
-      // Render the slideshow view
+
+      // File Handling
+      function handleFileSelection(files) {
+        const imageFiles = files.filter(file => file.type.startsWith('image/'));
+        
+        if (imageFiles.length === 0) {
+          showToast('Please select valid image files', 'error');
+          return;
+        }
+        
+        if (files.length !== imageFiles.length) {
+          showToast('Some files were rejected because they are not images', 'error');
+        }
+        
+        imageFiles.forEach(file => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            state.selectedImages.push({
+              src: e.target.result,
+              name: file.name
+            });
+            updateImagePreviews();
+          };
+          reader.readAsDataURL(file);
+        });
+        
+        showToast(`${imageFiles.length} images added to slideshow`);
+      }
+
+      // Update Image Previews
+      function updateImagePreviews() {
+        const previewContainer = document.getElementById('image-preview');
+        previewContainer.innerHTML = renderImagePreviews();
+        
+        const continueBtn = document.getElementById('continue-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        
+        if (state.selectedImages.length > 0) {
+          continueBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+          clearBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        } else {
+          continueBtn.classList.add('opacity-50', 'cursor-not-allowed');
+          clearBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+      }
+
+      // Slideshow Rendering
       function renderSlideshow() {
         const appContainer = document.getElementById('app');
         appContainer.innerHTML = `
           <div class="relative w-full h-full bg-black">
             <div id="slideshow-container" class="w-full h-full flex items-center justify-center">
               <img 
-                src="${selectedImages[currentImageIndex].src}" 
+                src="${state.selectedImages[state.currentImageIndex].src}" 
                 alt="Slideshow image" 
                 class="max-w-full max-h-full fade-in object-contain"
               />
@@ -233,7 +223,7 @@
             
             <div class="absolute bottom-4 left-0 right-0 flex justify-center space-x-4">
               <button id="play-pause-btn" class="bg-white bg-opacity-30 hover:bg-opacity-50 text-white p-2 rounded-full transition">
-                ${isPlaying ? 
+                ${state.isPlaying ? 
                   `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <rect x="6" y="4" width="4" height="16"/>
                     <rect x="14" y="4" width="4" height="16"/>
@@ -261,62 +251,83 @@
             </div>
             
             <div class="absolute top-4 right-4 text-white bg-black bg-opacity-50 px-2 py-1 rounded">
-              ${currentImageIndex + 1} / ${selectedImages.length}
+              ${state.currentImageIndex + 1} / ${state.selectedImages.length}
             </div>
           </div>
         `;
         
         setupSlideshowEventListeners();
       }
-      
-      // Setup event listeners for the slideshow
+
+      // Slideshow Event Listeners
       function setupSlideshowEventListeners() {
         const playPauseBtn = document.getElementById('play-pause-btn');
         const addMoreBtn = document.getElementById('add-more-btn');
         const resetBtn = document.getElementById('reset-btn');
         
-        // Play/pause button
         playPauseBtn.addEventListener('click', togglePlayPause);
-        
-        // Add more images button
         addMoreBtn.addEventListener('click', () => {
           stopSlideshowTimer();
-          renderUploader();
+          document.removeEventListener('keydown', handleKeyNavigation);
+          render('uploader');
         });
         
-        // Reset button
         resetBtn.addEventListener('click', () => {
           stopSlideshowTimer();
-          selectedImages = [];
-          renderUploader();
+          document.removeEventListener('keydown', handleKeyNavigation);
+          state.selectedImages = [];
+          render('uploader');
           showToast('Slideshow reset');
         });
+
+        // Add key navigation
+        document.addEventListener('keydown', handleKeyNavigation);
       }
-      
-      // Start the slideshow timer
-      function startSlideshowTimer() {
-        stopSlideshowTimer(); // Clear any existing timer
-        
-        slideshowInterval = setInterval(() => {
-          currentImageIndex = (currentImageIndex + 1) % selectedImages.length;
-          updateSlideshowImage();
-        }, 5000); // Change image every 5 seconds
-      }
-      
-      // Stop the slideshow timer
-      function stopSlideshowTimer() {
-        if (slideshowInterval) {
-          clearInterval(slideshowInterval);
-          slideshowInterval = null;
+
+      // Key Navigation
+      function handleKeyNavigation(event) {
+        switch(event.key) {
+          case 'ArrowRight':
+            state.currentImageIndex = (state.currentImageIndex + 1) % state.selectedImages.length;
+            updateSlideshowImage();
+            if (state.isPlaying) startSlideshowTimer();
+            break;
+          case 'ArrowLeft':
+            state.currentImageIndex = (state.currentImageIndex - 1 + state.selectedImages.length) % state.selectedImages.length;
+            updateSlideshowImage();
+            if (state.isPlaying) startSlideshowTimer();
+            break;
         }
       }
-      
-      // Toggle play/pause state
+
+      // Slideshow Utilities
+      function startSlideshow() {
+        state.currentImageIndex = 0;
+        state.isPlaying = true;
+        render('slideshow');
+        startSlideshowTimer();
+      }
+
+      function startSlideshowTimer() {
+        stopSlideshowTimer();
+        state.slideshowInterval = setInterval(() => {
+          state.currentImageIndex = (state.currentImageIndex + 1) % state.selectedImages.length;
+          updateSlideshowImage();
+        }, 5000);
+      }
+
+      function stopSlideshowTimer() {
+        if (state.slideshowInterval) {
+          clearInterval(state.slideshowInterval);
+          state.slideshowInterval = null;
+        }
+      }
+
       function togglePlayPause() {
-        isPlaying = !isPlaying;
+        state.isPlaying = !state.isPlaying;
         
         const playPauseBtn = document.getElementById('play-pause-btn');
-        playPauseBtn.innerHTML = isPlaying ? 
+        playPauseBtn.innerHTML = state.isPlaying ? 
           `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="6" y="4" width="4" height="16"/>
             <rect x="14" y="4" width="4" height="16"/>
@@ -325,32 +336,29 @@
             <polygon points="5 3 19 12 5 21 5 3"/>
           </svg>`;
         
-        if (isPlaying) {
+        if (state.isPlaying) {
           startSlideshowTimer();
         } else {
           stopSlideshowTimer();
         }
       }
-      
-      // Update the current image in the slideshow
+
       function updateSlideshowImage() {
         const slideshowContainer = document.getElementById('slideshow-container');
         slideshowContainer.innerHTML = `
           <img 
-            src="${selectedImages[currentImageIndex].src}" 
+            src="${state.selectedImages[state.currentImageIndex].src}" 
             alt="Slideshow image" 
             class="max-w-full max-h-full fade-in object-contain"
           />
         `;
         
-        // Update the counter
         const counter = document.querySelector('.absolute.top-4.right-4');
-        counter.textContent = `${currentImageIndex + 1} / ${selectedImages.length}`;
+        counter.textContent = `${state.currentImageIndex + 1} / ${state.selectedImages.length}`;
       }
-      
-      // Show a toast notification
+
+      // Toast Notification
       function showToast(message, type = 'success') {
-        // Create toast element
         const toast = document.createElement('div');
         toast.className = `fixed top-4 right-4 px-4 py-2 rounded shadow-lg transition-opacity z-50 ${
           type === 'success' ? 'bg-green-500 text-white' : 
@@ -360,15 +368,12 @@
         toast.style.opacity = '0';
         toast.textContent = message;
         
-        // Append to body
         document.body.appendChild(toast);
         
-        // Fade in
         setTimeout(() => {
           toast.style.opacity = '1';
         }, 10);
         
-        // Fade out and remove
         setTimeout(() => {
           toast.style.opacity = '0';
           setTimeout(() => {
@@ -376,13 +381,16 @@
           }, 300);
         }, 3000);
       }
-      
-      // Make the removeImage function globally available
+
+      // Global Remove Image Function
       window.removeImage = function(index) {
-        selectedImages.splice(index, 1);
+        state.selectedImages.splice(index, 1);
         updateImagePreviews();
         showToast('Image removed');
       };
+
+      // Initial render
+      render('uploader');
     });
   </script>
 </body>
